@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>NetPulse — Gaming Network Diagnostic</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0A0F1A">
+<style>
+  :root{
+    --bg:#0A0F1A;
+    --panel:#111A2B;
+    --panel-2:#0D1524;
+    --line:#1F2C42;
+    --text:#E8EDF6;
+    --muted:#7C8AA3;
+    --good:#5CFFB0;
+    --ok:#5CD1FF;
+    --warn:#FFC15C;
+    --bad:#FF5C7A;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Courier New", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font-family:var(--sans); overflow-x:hidden;}
+  body{
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(92,209,255,0.08), transparent 40%),
+      radial-gradient(circle at 85% 10%, rgba(92,255,176,0.06), transparent 40%);
+    padding-bottom:40px;
+  }
+  .wrap{max-width:560px; margin:0 auto; padding:20px 16px 8px;}
+
+  /* Header */
+  header{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-mark{width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg, var(--ok), var(--good)); display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .brand-mark svg{width:18px; height:18px;}
+  .brand h1{font-size:16px; margin:0; letter-spacing:0.02em;}
+  .brand .sub{font-size:11px; color:var(--muted); margin-top:1px; font-family:var(--mono);}
+  .status-pill{font-size:10px; font-family:var(--mono); color:var(--muted); border:1px solid var(--line); padding:5px 9px; border-radius:20px; display:flex; align-items:center; gap:6px;}
+  .dot{width:6px; height:6px; border-radius:50%; background:var(--muted);}
+  .dot.live{background:var(--good); box-shadow:0 0 8px var(--good); animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:0.35;}}
+
+  /* Honesty banner */
+  .truth{
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--ok);
+    border-radius:10px; padding:12px 14px; margin-bottom:16px; font-size:12.5px; line-height:1.55; color:var(--muted);
+  }
+  .truth b{color:var(--text);}
+
+  /* Hero readout */
+  .hero{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:20px 18px; margin-bottom:14px; position:relative; overflow:hidden;
+  }
+  .hero-top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;}
+  .hero-label{font-size:11px; color:var(--muted); font-family:var(--mono); text-transform:uppercase; letter-spacing:0.08em;}
+  .verdict{font-size:11px; font-family:var(--mono); padding:4px 10px; border-radius:20px; border:1px solid var(--line); font-weight:600;}
+  .verdict.excellent{color:var(--good); border-color:rgba(92,255,176,0.35); background:rgba(92,255,176,0.08);}
+  .verdict.good{color:var(--ok); border-color:rgba(92,209,255,0.35); background:rgba(92,209,255,0.08);}
+  .verdict.playable{color:var(--warn); border-color:rgba(255,193,92,0.35); background:rgba(255,193,92,0.08);}
+  .verdict.laggy{color:var(--bad); border-color:rgba(255,92,122,0.35); background:rgba(255,92,122,0.08);}
+  .verdict.idle{color:var(--muted);}
+  .big-number{font-family:var(--mono); font-size:52px; font-weight:600; line-height:1; margin:6px 0 2px; letter-spacing:-0.02em;}
+  .big-number span{font-size:18px; color:var(--muted); font-weight:400; margin-left:4px;}
+  .stat-row{display:flex; gap:18px; margin-top:14px; flex-wrap:wrap;}
+  .stat{font-family:var(--mono);}
+  .stat .k{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;}
+  .stat .v{font-size:15px; margin-top:2px;}
+
+  /* Waveform */
+  canvas#wave{width:100%; height:80px; display:block; margin-top:14px; border-radius:8px; background:var(--panel-2);}
+
+  /* Buttons */
+  .btn-row{display:flex; gap:10px; margin-bottom:16px;}
+  button{
+    font-family:var(--sans); font-size:14px; font-weight:600; border:none; border-radius:12px;
+    padding:14px 16px; cursor:pointer; flex:1; transition:transform 0.1s ease, opacity 0.2s ease;
+  }
+  button:active{transform:scale(0.97);}
+  .btn-primary{background:linear-gradient(135deg, var(--ok), var(--good)); color:#04101C;}
+  .btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--line);}
+  button:disabled{opacity:0.5; cursor:not-allowed;}
+
+  /* Section titles */
+  .section-title{font-size:11px; font-family:var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin:22px 0 10px 2px;}
+
+  /* Endpoint comparison */
+  .ep-list{display:flex; flex-direction:column; gap:8px;}
+  .ep-row{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .ep-name{flex:1; font-size:13px;}
+  .ep-name .loc{display:block; font-size:10px; color:var(--muted); font-family:var(--mono); margin-top:1px;}
+  .ep-bar-wrap{width:80px; height:5px; background:var(--panel-2); border-radius:4px; overflow:hidden;}
+  .ep-bar{height:100%; border-radius:4px; transition:width 0.5s ease;}
+  .ep-ms{font-family:var(--mono); font-size:13px; width:56px; text-align:right; color:var(--text);}
+
+  /* Recommendations */
+  .rec-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px;
+    margin-bottom:8px; font-size:13px; line-height:1.5; display:flex; gap:10px;
+  }
+  .rec-card .ico{flex-shrink:0; width:20px; text-align:center;}
+
+  /* Checklist */
+  .check-item{
+    display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:13px 14px; margin-bottom:8px; font-size:13.5px; cursor:pointer;
+  }
+  .check-item input{width:18px; height:18px; accent-color:var(--good); flex-shrink:0;}
+  .check-item.done span{color:var(--muted); text-decoration:line-through;}
+
+  footer{text-align:center; font-size:11px; color:var(--muted); font-family:var(--mono); margin-top:24px; padding:0 20px; line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 12C3 12 6 6 12 6C18 6 21 12 21 12" stroke="#04101C" stroke-width="2" stroke-linecap="round"/>
+          <path d="M6 15C6 15 8 11 12 11C16 11 18 15 18 15" stroke="#04101C" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="12" cy="18" r="1.6" fill="#04101C"/>
+        </svg>
+      </div>
+      <div>
+        <h1>NetPulse</h1>
+        <div class="sub">gaming network diagnostic</div>
+      </div>
+    </div>
+    <div class="status-pill"><span class="dot" id="liveDot"></span><span id="liveLabel">idle</span></div>
+  </header>
+
+  <div class="truth">
+    <b>Jujur di depan:</b> alat ini tidak "memperkuat" sinyal WiFi — itu tidak
+    mungkin dilakukan lewat software apa pun. Yang ditampilkan di sini adalah
+    <b>pengukuran nyata</b> (ping, jitter, tipe koneksi) plus rekomendasi
+    konkret untuk mengurangi lag saat main game.
+  </div>
+
+  <div class="hero">
+    <div class="hero-top">
+      <div class="hero-label">Ping rata-rata</div>
+      <div class="verdict idle" id="verdict">belum dites</div>
+    </div>
+    <div class="big-number"><span id="avgPing">—</span><span>ms</span></div>
+    <div class="stat-row">
+      <div class="stat"><div class="k">Jitter</div><div class="v" id="jitter">—</div></div>
+      <div class="stat"><div class="k">Min</div><div class="v" id="minPing">—</div></div>
+      <div class="stat"><div class="k">Max</div><div class="v" id="maxPing">—</div></div>
+      <div class="stat"><div class="k">Koneksi</div><div class="v" id="connType">—</div></div>
+    </div>
+    <canvas id="wave"></canvas>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-primary" id="startBtn">Mulai Tes</button>
+    <button class="btn-ghost" id="stopBtn" disabled>Stop</button>
+  </div>
+
+  <div class="section-title">Perbandingan Titik Server</div>
+  <div class="ep-list" id="epList"></div>
+
+  <div class="section-title">Rekomendasi</div>
+  <div id="recList">
+    <div class="rec-card"><div class="ico">◌</div><div>Jalankan tes dulu supaya rekomendasi disesuaikan dengan kondisi jaringanmu saat ini.</div></div>
+  </div>
+
+  <div class="section-title">Checklist Optimasi Manual</div>
+  <div id="checklist"></div>
+
+  <footer>
+    Semua pengukuran diproses langsung di browser HP kamu.<br>
+    Tidak ada data yang dikirim atau disimpan ke server manapun.
+  </footer>
+</div>
+
+<script>
+// ---------- Endpoint targets (image-ping technique, no CORS needed) ----------
+const endpoints = [
+  {name:"Google", loc:"Global CDN", host:"https://www.google.com/favicon.ico"},
+  {name:"Cloudflare", loc:"Global Edge", host:"https://www.cloudflare.com/favicon.ico"},
+  {name:"Microsoft", loc:"Global CDN", host:"https://www.bing.com/favicon.ico"},
+  {name:"Amazon", loc:"Global CDN", host:"https://www.amazon.com/favicon.ico"},
+];
+
+let running = false;
+let history = []; // recent ping samples for waveform
+let epState = endpoints.map(e => ({...e, samples:[]}));
+
+function pingOnce(url){
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    const img = new Image();
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      resolve(ok ? performance.now() - t0 : null);
+    };
+    img.onload = () => finish(true);
+    img.onerror = () => finish(true); // error still means round-trip completed (favicon 404 etc.)
+    img.src = url + "?cachebust=" + Date.now() + Math.random();
+    setTimeout(() => finish(false), 3000); // timeout
+  });
+}
+
+function verdictFor(avg, jitterVal){
+  if (avg === null) return {label:"belum dites", cls:"idle"};
+  if (avg < 40 && jitterVal < 15) return {label:"excellent", cls:"excellent"};
+  if (avg < 80 && jitterVal < 30) return {label:"good", cls:"good"};
+  if (avg < 150) return {label:"playable", cls:"playable"};
+  return {label:"laggy", cls:"laggy"};
+}
+
+function colorFor(ms){
+  if (ms === null) return "var(--muted)";
+  if (ms < 60) return "var(--good)";
+  if (ms < 120) return "var(--ok)";
+  if (ms < 220) return "var(--warn)";
+  return "var(--bad)";
+}
+
+function renderEndpoints(){
+  const list = document.getElementById('epList');
+  list.innerHTML = '';
+  const maxVal = Math.max(200, ...epState.flatMap(e => e.samples.length ? [e.samples[e.samples.length-1]] : [0]));
+  epState.forEach(e => {
+    const last = e.samples.length ? e.samples[e.samples.length-1] : null;
+    const avg = e.samples.length ? Math.round(e.samples.reduce((a,b)=>a+b,0)/e.samples.length) : null;
+    const row = document.createElement('div');
+    row.className = 'ep-row';
+    const pct = last ? Math.min(100, (last / maxVal) * 100) : 0;
+    row.innerHTML = `
+      <div class="ep-name">${e.name}<span class="loc">${e.loc}</span></div>
+      <div class="ep-bar-wrap"><div class="ep-bar" style="width:${pct}%; background:${colorFor(last)}"></div></div>
+      <div class="ep-ms">${avg !== null ? avg + ' ms' : '—'}</div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderConnType(){
+  const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const el = document.getElementById('connType');
+  if (c && c.effectiveType) {
+    el.textContent = c.effectiveType.toUpperCase() + (c.downlink ? ` · ${c.downlink}Mb/s` : '');
+  } else {
+    el.textContent = 'tidak tersedia*';
+  }
+}
+
+function drawWave(){
+  const canvas = document.getElementById('wave');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,rect.width, rect.height);
+
+  const w = rect.width, h = rect.height;
+  const data = history.slice(-40);
+  if (data.length < 2) return;
+  const maxV = Math.max(150, ...data);
+  const step = w / (40 - 1);
+
+  ctx.beginPath();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ok');
+  data.forEach((v, i) => {
+    const x = i * step + (40-data.length)*step;
+    const y = h - (v / maxV) * (h - 10) - 5;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // glow dot at end
+  const lastX = (data.length-1) * step + (40-data.length)*step;
+  const lastY = h - (data[data.length-1] / maxV) * (h - 10) - 5;
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 3, 0, Math.PI*2);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--good');
+  ctx.fill();
+}
+
+function updateHero(){
+  const valid = history.filter(v => v !== null);
+  if (valid.length === 0){
+    document.getElementById('avgPing').textContent = '—';
+    document.getElementById('jitter').textContent = '—';
+    document.getElementById('minPing').textContent = '—';
+    document.getElementById('maxPing').textContent = '—';
+    return;
+  }
+  const avg = valid.reduce((a,b)=>a+b,0)/valid.length;
+  const min = Math.min(...valid);
+  const max = Math.max(...valid);
+  let jitterSum = 0;
+  for (let i=1;i<valid.length;i++) jitterSum += Math.abs(valid[i]-valid[i-1]);
+  const jitterVal = valid.length > 1 ? jitterSum/(valid.length-1) : 0;
+
+  document.getElementById('avgPing').textContent = Math.round(avg);
+  document.getElementById('jitter').textContent = Math.round(jitterVal) + ' ms';
+  document.getElementById('minPing').textContent = Math.round(min) + ' ms';
+  document.getElementById('maxPing').textContent = Math.round(max) + ' ms';
+
+  const v = verdictFor(avg, jitterVal);
+  const badge = document.getElementById('verdict');
+  badge.textContent = v.label;
+  badge.className = 'verdict ' + v.cls;
+
+  renderRecommendations(avg, jitterVal);
+}
+
+function renderRecommendations(avg, jitterVal){
+  const rec = [];
+  if (jitterVal > 30) rec.push({ico:'⚡', text:'Jitter kamu tinggi (naik-turun tajam) — ini biasanya penyebab "nge-lag tiba-tiba" walau rata-rata ping oke. Coba tutup aplikasi yang download/upload di background.'});
+  if (avg > 150) rec.push({ico:'📶', text:'Ping rata-rata tinggi. Kalau pakai WiFi: coba dekatkan HP ke router atau pindah ke pita 5GHz. Kalau pakai data seluler: cek kekuatan sinyal operator di lokasi kamu.'});
+  if (avg <= 150 && avg > 80) rec.push({ico:'🎮', text:'Koneksi cukup untuk main, tapi belum ideal untuk game kompetitif cepat (MOBA/FPS). Aktifkan mode hemat data di app lain yang jalan di background.'});
+  if (avg <= 80) rec.push({ico:'✅', text:'Koneksi kamu bagus untuk gaming. Untuk menjaganya tetap stabil, hindari download besar di HP lain yang satu jaringan saat main.'});
+  const c = navigator.connection;
+  if (c && c.saveData) rec.push({ico:'🔋', text:'Data Saver aktif di HP kamu — ini bisa membatasi bandwidth. Matikan sementara saat main game online.'});
+
+  const el = document.getElementById('recList');
+  el.innerHTML = rec.map(r => `<div class="rec-card"><div class="ico">${r.ico}</div><div>${r.text}</div></div>`).join('');
+}
+
+async function testCycle(){
+  const results = await Promise.all(epState.map(async (e) => {
+    const ms = await pingOnce(e.host);
+    return ms;
+  }));
+  results.forEach((ms, i) => {
+    if (ms !== null) {
+      epState[i].samples.push(Math.round(ms));
+      if (epState[i].samples.length > 8) epState[i].samples.shift();
+    }
+  });
+  const validResults = results.filter(r => r !== null);
+  const avgThisRound = validResults.length ? validResults.reduce((a,b)=>a+b,0)/validResults.length : null;
+  history.push(avgThisRound);
+  if (history.length > 60) history.shift();
+
+  renderEndpoints();
+  drawWave();
+  updateHero();
+}
+
+let loopTimer = null;
+async function loop(){
+  if (!running) return;
+  await testCycle();
+  loopTimer = setTimeout(loop, 1200);
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  running = true;
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('stopBtn').disabled = false;
+  document.getElementById('liveDot').classList.add('live');
+  document.getElementById('liveLabel').textContent = 'live';
+  loop();
+});
+document.getElementById('stopBtn').addEventListener('click', () => {
+  running = false;
+  clearTimeout(loopTimer);
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+  document.getElementById('liveDot').classList.remove('live');
+  document.getElementById('liveLabel').textContent = 'idle';
+});
+
+// ---------- Checklist ----------
+const checklistItems = [
+  "Tutup aplikasi background yang download/update (termasuk auto-backup foto)",
+  "Aktifkan Game Mode / Do Not Disturb saat main",
+  "Kalau WiFi: pindah ke pita 5GHz bila router mendukung",
+  "Dekatkan HP ke router, kurangi halangan tembok/logam",
+  "Matikan Data Saver saat main game online",
+  "Pastikan tidak ada perangkat lain di jaringan yang sedang streaming/download besar",
+  "Restart router jika ping tidak stabil lebih dari beberapa jam",
+];
+const clEl = document.getElementById('checklist');
+checklistItems.forEach((text, i) => {
+  const id = 'chk' + i;
+  const row = document.createElement('label');
+  row.className = 'check-item';
+  row.setAttribute('for', id);
+  row.innerHTML = `<input type="checkbox" id="${id}"><span>${text}</span>`;
+  row.querySelector('input').addEventListener('change', (e) => {
+    row.classList.toggle('done', e.target.checked);
+  });
+  clEl.appendChild(row);
+});
+
+// ---------- Init ----------
+renderConnType();
+renderEndpoints();
+drawWave();
+window.addEventListener('resize', drawWave);
+
+// Register service worker if hosted (fails silently if opened as local file)
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
