@@ -1,6 +1,6 @@
 {
-  "name": "NetPulse — Gaming Network Diagnostic",
-  "short_name": "NetPulse",
+  "name": "NetPulse — Gaming Network Diagnostic By: Zennsky",
+  "short_name": "NetPulse By: Zennsky",
   "description": "Diagnostik jaringan jujur untuk mengurangi lag saat main game — bukan penguat sinyal palsu.",
   "start_url": "./index.html",
   "display": "standalone",
